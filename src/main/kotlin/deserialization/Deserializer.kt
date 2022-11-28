@@ -9,15 +9,15 @@ import kotlin.reflect.KClass
 import kotlin.reflect.KParameter
 import kotlin.reflect.jvm.javaType
 
-inline fun <reified T: Any> deserialize(json: String): T {
+inline fun <reified T : Any> deserialize(json: String): T {
     return deserialize(StringReader(json))
 }
 
-inline fun <reified T: Any> deserialize(json: Reader): T {
+inline fun <reified T : Any> deserialize(json: Reader): T {
     return deserialize(json, T::class)
 }
 
-fun <T: Any> deserialize(json: Reader, targetClass: KClass<T>): T {
+fun <T : Any> deserialize(json: Reader, targetClass: KClass<T>): T {
     val seed = ObjectSeed(targetClass, ClassInfoCache())
     Parser(json, seed).parse()
     return seed.spawn()
@@ -31,7 +31,7 @@ interface JsonObject {
     fun createArray(propertyName: String): JsonObject
 }
 
-interface Seed: JsonObject {
+interface Seed : JsonObject {
     val classInfoCache: ClassInfoCache
 
     fun spawn(): Any?
@@ -49,7 +49,7 @@ fun Seed.createSeedForType(paramType: Type, isList: Boolean): Seed {
     if (List::class.java.isAssignableFrom(paramClass)) {
         if (!isList) throw JKidException("An array expected, not a composite object")
         val parameterizedType = paramType as? ParameterizedType
-                ?: throw UnsupportedOperationException("Unsupported parameter type $this")
+            ?: throw UnsupportedOperationException("Unsupported parameter type $this")
 
         val elementType = parameterizedType.actualTypeArguments.single()
         if (elementType.isPrimitiveOrString()) {
@@ -58,13 +58,20 @@ fun Seed.createSeedForType(paramType: Type, isList: Boolean): Seed {
         return ObjectListSeed(elementType, classInfoCache)
     }
     if (isList) throw JKidException("Object of the type ${paramType.typeName} expected, not an array")
+    if (Map::class.java.isAssignableFrom(paramClass)) {
+        val parameterizedType = paramType as? ParameterizedType
+            ?: throw UnsupportedOperationException("Unsupported parameter type $this")
+
+        val elementType = parameterizedType.actualTypeArguments[1]
+        return MapSeed(elementType, classInfoCache)
+    }
     return ObjectSeed(paramClass.kotlin, classInfoCache)
 }
 
 
-class ObjectSeed<out T: Any>(
-        targetClass: KClass<T>,
-        override val classInfoCache: ClassInfoCache
+class ObjectSeed<out T : Any>(
+    targetClass: KClass<T>,
+    override val classInfoCache: ClassInfoCache
 ) : Seed {
 
     private val classInfo: ClassInfo<T> = classInfoCache[targetClass]
@@ -84,7 +91,8 @@ class ObjectSeed<out T: Any>(
         val param = classInfo.getConstructorParameter(propertyName)
         val deserializeAs = classInfo.getDeserializeClass(propertyName)
         val seed = createSeedForType(
-                deserializeAs ?: param.type.javaType, isList)
+            deserializeAs ?: param.type.javaType, isList
+        )
         return seed.apply { seedArguments[param] = this }
     }
 
@@ -92,8 +100,8 @@ class ObjectSeed<out T: Any>(
 }
 
 class ObjectListSeed(
-        val elementType: Type,
-        override val classInfoCache: ClassInfoCache
+    val elementType: Type,
+    override val classInfoCache: ClassInfoCache
 ) : Seed {
     private val elements = mutableListOf<Seed>()
 
@@ -102,14 +110,14 @@ class ObjectListSeed(
     }
 
     override fun createCompositeProperty(propertyName: String, isList: Boolean) =
-            createSeedForType(elementType, isList).apply { elements.add(this) }
+        createSeedForType(elementType, isList).apply { elements.add(this) }
 
     override fun spawn(): List<*> = elements.map { it.spawn() }
 }
 
 class ValueListSeed(
-        elementType: Type,
-        override val classInfoCache: ClassInfoCache
+    elementType: Type,
+    override val classInfoCache: ClassInfoCache
 ) : Seed {
     private val elements = mutableListOf<Any?>()
     private val serializerForType = serializerForBasicType(elementType)
@@ -123,4 +131,22 @@ class ValueListSeed(
     }
 
     override fun spawn() = elements
+}
+
+class MapSeed(
+    private val elementType: Type,
+    override val classInfoCache: ClassInfoCache
+) : Seed {
+    private val valueMap = mutableMapOf<String, Any?>()
+    private val seedMap = mutableMapOf<String, Seed>()
+
+    override fun setSimpleProperty(propertyName: String, value: Any?) {
+        valueMap[propertyName] = value
+    }
+
+    override fun createCompositeProperty(propertyName: String, isList: Boolean) =
+        createSeedForType(elementType, isList).apply { seedMap[propertyName] = this }
+
+    override fun spawn(): Map<String, Any?> =
+        valueMap + seedMap.mapValues { it.value.spawn() }
 }
