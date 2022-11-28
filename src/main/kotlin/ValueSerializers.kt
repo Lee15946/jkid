@@ -2,6 +2,8 @@ package ru.yole.jkid
 
 import ru.yole.jkid.deserialization.JKidException
 import java.lang.reflect.Type
+import java.text.SimpleDateFormat
+import java.util.Date
 
 fun serializerForBasicType(type: Type): ValueSerializer<out Any?> {
     assert(type.isPrimitiveOrString()) { "Expected primitive type or String: ${type.typeName}" }
@@ -9,17 +11,17 @@ fun serializerForBasicType(type: Type): ValueSerializer<out Any?> {
 }
 
 fun serializerForType(type: Type): ValueSerializer<out Any?>? =
-        when (type) {
-            Byte::class.java, Byte::class.javaObjectType -> ByteSerializer
-            Short::class.java, Short::class.javaObjectType -> ShortSerializer
-            Int::class.java, Int::class.javaObjectType -> IntSerializer
-            Long::class.java, Long::class.javaObjectType -> LongSerializer
-            Float::class.java, Float::class.javaObjectType -> FloatSerializer
-            Double::class.java, Double::class.javaObjectType -> DoubleSerializer
-            Boolean::class.java, Boolean::class.javaObjectType -> BooleanSerializer
-            String::class.java -> StringSerializer
-            else -> null
-        }
+    when (type) {
+        Byte::class.java, Byte::class.javaObjectType -> ByteSerializer
+        Short::class.java, Short::class.javaObjectType -> ShortSerializer
+        Int::class.java, Int::class.javaObjectType -> IntSerializer
+        Long::class.java, Long::class.javaObjectType -> LongSerializer
+        Float::class.java, Float::class.javaObjectType -> FloatSerializer
+        Double::class.java, Double::class.javaObjectType -> DoubleSerializer
+        Boolean::class.java, Boolean::class.javaObjectType -> BooleanSerializer
+        String::class.java -> StringSerializer
+        else -> null
+    }
 
 private fun Any?.expectNumber(): Number {
     if (this !is Number) throw JKidException("Expected number, was: $this")
@@ -72,4 +74,14 @@ object StringSerializer : ValueSerializer<String?> {
     }
 
     override fun toJsonValue(value: String?) = value
+}
+
+class DateSerializer(format: String) : ValueSerializer<Date> {
+    private val dateFormat = SimpleDateFormat(format)
+
+    override fun toJsonValue(value: Date): Any? =
+        dateFormat.format(value)
+
+    override fun fromJsonValue(jsonValue: Any?): Date =
+        dateFormat.parse(jsonValue as String)
 }

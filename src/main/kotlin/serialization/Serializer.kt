@@ -21,14 +21,14 @@ private fun StringBuilder.serializeObjectWithoutAnnotation(obj: Any) {
 
 private fun StringBuilder.serializeObject(obj: Any) {
     obj.javaClass.kotlin.memberProperties
-            .filter { it.findAnnotation<JsonExclude>() == null }
-            .joinToStringBuilder(this, prefix = "{", postfix = "}") {
-                serializeProperty(it, obj)
-            }
+        .filter { it.findAnnotation<JsonExclude>() == null }
+        .joinToStringBuilder(this, prefix = "{", postfix = "}") {
+            serializeProperty(it, obj)
+        }
 }
 
 private fun StringBuilder.serializeProperty(
-        prop: KProperty1<Any, *>, obj: Any
+    prop: KProperty1<Any, *>, obj: Any
 ) {
     val jsonNameAnn = prop.findAnnotation<JsonName>()
     val propName = jsonNameAnn?.name ?: prop.name
@@ -41,11 +41,15 @@ private fun StringBuilder.serializeProperty(
 }
 
 fun KProperty<*>.getSerializer(): ValueSerializer<Any?>? {
+    val dateFormat = findAnnotation<DateFormat>()
+    if (dateFormat != null) {
+        return DateSerializer(dateFormat.format) as ValueSerializer<Any?>
+    }
     val customSerializerAnn = findAnnotation<CustomSerializer>() ?: return null
     val serializerClass = customSerializerAnn.serializerClass
 
     val valueSerializer = serializerClass.objectInstance
-            ?: serializerClass.createInstance()
+        ?: serializerClass.createInstance()
     @Suppress("UNCHECKED_CAST")
     return valueSerializer as ValueSerializer<Any?>
 }
@@ -73,13 +77,13 @@ private fun StringBuilder.serializeString(s: String) {
 }
 
 private fun Char.escape(): Any =
-        when (this) {
-            '\\' -> "\\\\"
-            '\"' -> "\\\""
-            '\b' -> "\\b"
-            '\u000C' -> "\\f"
-            '\n' -> "\\n"
-            '\r' -> "\\r"
-            '\t' -> "\\t"
-            else -> this
-        }
+    when (this) {
+        '\\' -> "\\\\"
+        '\"' -> "\\\""
+        '\b' -> "\\b"
+        '\u000C' -> "\\f"
+        '\n' -> "\\n"
+        '\r' -> "\\r"
+        '\t' -> "\\t"
+        else -> this
+    }
